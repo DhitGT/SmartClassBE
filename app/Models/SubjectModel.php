@@ -31,6 +31,11 @@ class SubjectModel extends Model
     {
         return $this->hasOne(TeacherModel::class, 'subject_id', 'id');
     }
+    
+    public function schedule()
+    {
+        return $this->hasOne(ScheduleSubjectModel::class, 'subject_id', 'id');
+    }
 
     public function task()
     {

@@ -15,6 +15,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('day');
             $table->string('subject_id');
+            $table->time('start_time');
+            $table->time('end_time');
             $table->string('class_id');
             $table->timestamps();
         });

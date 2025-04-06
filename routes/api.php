@@ -18,6 +18,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeacherController;
@@ -60,6 +61,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/edit', [TaskController::class, 'editTask']);
         Route::post('/get', [TaskController::class, 'getTask']);
         Route::post('/delete', [TaskController::class, 'deleteTask']);
+    });
+    route::prefix('/schedule')->group(function () {
+        Route::post('/GetClassSubjectSchedule', [ScheduleController::class, 'GetClassSubjectSchedule']);
+        Route::post('/SetSchedule', [ScheduleController::class, 'SetSchedule']);
+        Route::post('/RemoveSchedule', [ScheduleController::class, 'RemoveSchedule']);
+        Route::post('/GetIdleSubject', [ScheduleController::class, 'GetIdleSubject']);
     });
 
     Route::post('/getCountData', [DashboardController::class, 'getCountData']);

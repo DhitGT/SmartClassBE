@@ -13,6 +13,8 @@ class ScheduleSubjectModel extends Model
     public $incrementing = false; // Disable auto-increment
     protected $keyType = 'string'; // Set primary key type as string
 
+    protected $fillable = ['day','subject_id','class_id','start_time','end_time'];
+
     protected static function boot()
     {
         parent::boot();
@@ -22,5 +24,10 @@ class ScheduleSubjectModel extends Model
                 $model->id = Str::uuid(); // Generate UUID
             }
         });
+    }
+
+    public function subject()
+    {
+        return $this->belongsTo(SubjectModel::class,'subject_id');
     }
 }
