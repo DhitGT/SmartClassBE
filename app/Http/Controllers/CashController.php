@@ -171,6 +171,11 @@ class CashController extends Controller
         $month = $req->month ?? now()->month;
         $currentWeek = now()->weekOfMonth;
 
+        if($req->month < now()->month){
+            $currentWeek = 4;
+        }
+
+
         // Previous Month Calculation
         $previousMonth = $month == 1 ? 12 : $month - 1;
         $previousYear = $month == 1 ? $year - 1 : $year;

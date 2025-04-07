@@ -64,9 +64,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     route::prefix('/schedule')->group(function () {
         Route::post('/GetClassSubjectSchedule', [ScheduleController::class, 'GetClassSubjectSchedule']);
+        Route::post('/GetClassDutySchedule', [ScheduleController::class, 'GetClassDutySchedule']);
         Route::post('/SetSchedule', [ScheduleController::class, 'SetSchedule']);
+        Route::post('/SetDutySchedule', [ScheduleController::class, 'SetDutySchedule']);
         Route::post('/RemoveSchedule', [ScheduleController::class, 'RemoveSchedule']);
+        Route::post('/RemoveDutySchedule', [ScheduleController::class, 'RemoveDutySchedule']);
         Route::post('/GetIdleSubject', [ScheduleController::class, 'GetIdleSubject']);
+        Route::post('/GetIdleMember', [ScheduleController::class, 'GetIdleMember']);
     });
 
     Route::post('/getCountData', [DashboardController::class, 'getCountData']);

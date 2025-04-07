@@ -39,6 +39,11 @@ class MemberModel extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function scheduleDuty()
+    {
+        return $this->hasOne(ScheduleDutyModel::class, 'member_id', 'id');
+    }
+
     public function kas(): HasMany
     {
         return $this->hasMany(CashModel::class, 'member_id');
