@@ -14,6 +14,30 @@ use Illuminate\Support\Facades\Auth;
 
 class SubjectController extends Controller
 {
+    public function getUserClass($user, $grantRole)
+    {
+        $class =  new ClassModel();
+
+        if (!in_array($user->role, $grantRole)) {
+            return response()->json([
+                'message' => 'Permission denied',
+                'messageType' => 'error',
+                'user' => $user,
+                'grant' => !in_array($user->role, $grantRole),
+            ], 200);
+        }
+
+        if ($user->role == 'Leader') {
+            $class = ClassModel::where('leader_id', $user->id)->first();
+        }
+        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+            $memberData = MemberModel::where('user_id', $user->id)->first();
+            $class = ClassModel::where('id', $memberData->class_id)->first();
+        }
+
+        return $class;
+    }
+
     public function addSubject(Request $req)
     {
         // Ensure the authenticated user exists
@@ -22,14 +46,18 @@ class SubjectController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
+
+        // if ($user->role == 'Leader') {
+        //     $class = ClassModel::where('leader_id', $user->id)->first();
+        // } else if ($user->role == 'Secretary') {
+        //     $memberData = MemberModel::where('user_id', $user->id)->first();
+        //     $class = ClassModel::where('id', $memberData->class_id)->first();
+        // }
+
 
 
         // Validate incoming request data
@@ -78,7 +106,10 @@ class SubjectController extends Controller
         }
 
         // Get the class based on user role
-        $class = new ClassModel();
+        $class = $this->getUserClass($user, ['Leader', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
 
         if ($user->role == 'Leader') {
             $class = ClassModel::where('leader_id', $user->id)->first();
@@ -125,14 +156,17 @@ class SubjectController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Secretary', 'Member', 'Treasurer']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
+
+        // if ($user->role == 'Leader') {
+        //     $class = ClassModel::where('leader_id', $user->id)->first();
+        // } else if ($user->role == 'Secretary') {
+        //     $memberData = MemberModel::where('user_id', $user->id)->first();
+        //     $class = ClassModel::where('id', $memberData->class_id)->first();
+        // }
 
         $subject = SubjectModel::where('class_id', $class->id)
             ->withCount('task')
@@ -173,16 +207,19 @@ class SubjectController extends Controller
         }
 
         // Get the class based on user role
-        $class = null;
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            if ($memberData) {
-                $class = ClassModel::where('id', $memberData->class_id)->first();
-            }
+        $class =  $this->getUserClass($user, ['Leader', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
+
+        // if ($user->role == 'Leader') {
+        //     $class = ClassModel::where('leader_id', $user->id)->first();
+        // } else if ($user->role == 'Secretary') {
+        //     $memberData = MemberModel::where('user_id', $user->id)->first();
+        //     if ($memberData) {
+        //         $class = ClassModel::where('id', $memberData->class_id)->first();
+        //     }
+        // }
 
         if (!$class || $subject->class_id != $class->id) {
             return response()->json(['message' => 'Unauthorized to delete this subject'], 403);

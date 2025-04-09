@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     route::prefix('/schedule')->group(function () {
         Route::post('/GetClassSubjectSchedule', [ScheduleController::class, 'GetClassSubjectSchedule']);
+        Route::post('/GetClassNowSubjectSchedule', [ScheduleController::class, 'GetClassNowSubjectSchedule']);
         Route::post('/GetClassDutySchedule', [ScheduleController::class, 'GetClassDutySchedule']);
         Route::post('/SetSchedule', [ScheduleController::class, 'SetSchedule']);
         Route::post('/SetDutySchedule', [ScheduleController::class, 'SetDutySchedule']);

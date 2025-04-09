@@ -15,7 +15,28 @@ use Exception;
 
 class TaskController extends Controller
 {
-    //
+    public function getUserClass($user, $grantRole)
+    {
+        $class =  new ClassModel();
+
+        if (!in_array($user->role, $grantRole)) {
+            return response()->json([
+                'message' => 'Permission denied',
+                'messageType' => 'error',
+            ], 200);
+        }
+
+        if ($user->role == 'Leader') {
+            $class = ClassModel::where('leader_id', $user->id)->first();
+        }
+        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+            $memberData = MemberModel::where('user_id', $user->id)->first();
+            $class = ClassModel::where('id', $memberData->class_id)->first();
+        }
+
+        return $class;
+    }
+
     public function addTask(Request $req)
     {
         try {
@@ -25,13 +46,9 @@ class TaskController extends Controller
                 return response()->json(['message' => 'Unauthorized'], 401);
             }
 
-            $class = null;
-
-            if ($user->role == 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } elseif ($user->role == 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                $class = ClassModel::where('id', $memberData->class_id)->first();
+            $class =  $this->getUserClass($user, ['Leader', 'Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {
@@ -115,13 +132,9 @@ class TaskController extends Controller
                 return response()->json(['message' => 'Unauthorized'], 401);
             }
 
-            $class = null;
-
-            if ($user->role == 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } elseif ($user->role == 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                $class = ClassModel::where('id', $memberData->class_id)->first();
+            $class =  $this->getUserClass($user, ['Leader', 'Member', 'Treasurer', 'Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {
@@ -144,9 +157,9 @@ class TaskController extends Controller
                 });
             }
 
-          
+
             if ($req->subject) {
-                $tasks->where('subject_id', $req->subject); 
+                $tasks->where('subject_id', $req->subject);
             }
 
             $tasks = $tasks->get();
@@ -155,7 +168,7 @@ class TaskController extends Controller
                 'message' => 'Tasks retrieved successfully',
                 'messageType' => 'success',
                 'tasks' => $tasks
-                
+
             ], 200);
         } catch (Exception $e) {
             return response()->json([
@@ -173,13 +186,9 @@ class TaskController extends Controller
                 return response()->json(['message' => 'Unauthorized'], 401);
             }
 
-            $class = null;
-
-            if ($user->role == 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } elseif ($user->role == 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                $class = ClassModel::where('id', $memberData->class_id)->first();
+            $class =  $this->getUserClass($user, ['Leader', 'Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {

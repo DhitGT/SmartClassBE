@@ -15,6 +15,28 @@ use Illuminate\Support\Facades\Auth;
 class CashController extends Controller
 {
     //
+    public function getUserClass($user, $grantRole)
+    {
+        $class =  new ClassModel();
+
+        if (!in_array($user->role, $grantRole)) {
+            return response()->json([
+                'message' => 'Permission denied',
+                'messageType' => 'error',
+            ], 200);
+        }
+
+        if ($user->role == 'Leader') {
+            $class = ClassModel::where('leader_id', $user->id)->first();
+        }
+        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+            $memberData = MemberModel::where('user_id', $user->id)->first();
+            $class = ClassModel::where('id', $memberData->class_id)->first();
+        }
+
+        return $class;
+    }
+
     public function addTransaction(Request $req)
     {
         $user = Auth::user();
@@ -23,16 +45,21 @@ class CashController extends Controller
         }
 
         // Get class based on role
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            if (!$memberData) {
-                return response()->json(['message' => 'Class not found'], 404);
-            }
-            $class = ClassModel::where('id', $memberData->class_id)->first();
-        } else {
-            return response()->json(['message' => 'User does not have permission'], 403);
+        // if ($user->role == 'Leader') {
+        //     $class = ClassModel::where('leader_id', $user->id)->first();
+        // } else if ($user->role == 'Secretary') {
+        //     $memberData = MemberModel::where('user_id', $user->id)->first();
+        //     if (!$memberData) {
+        //         return response()->json(['message' => 'Class not found'], 404);
+        //     }
+        //     $class = ClassModel::where('id', $memberData->class_id)->first();
+        // } else {
+        //     return response()->json(['message' => 'User does not have permission'], 403);
+        // }
+
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
 
         if (!$class) {
@@ -127,12 +154,12 @@ class CashController extends Controller
             // Saldo Kas (Total Cash)
             $total_kas = $total_pemasukan - $total_pengeluaran;
 
-            if($total_kas <= $validatedData['amount']){
+            if ($total_kas <= $validatedData['amount']) {
                 return response()->json([
                     'message' => 'Expense transaction failed, insuficient balance',
                     // 'data' => $log
                 ], 201);
-            }else{
+            } else {
                 $log = new CashLogModel();
                 $log->id = Str::uuid();
                 $log->cash_id = null; // No linked cash entry for expenses
@@ -143,7 +170,7 @@ class CashController extends Controller
                 $log->amount = $validatedData['amount'];
                 $log->description = $validatedData['description'] ?? 'Cash Expense';
                 $log->save();
-    
+
                 return response()->json([
                     'message' => 'Expense transaction successfully added',
                     'data' => $log
@@ -160,7 +187,10 @@ class CashController extends Controller
     public function getClassCashSummary(Request $req)
     {
         $user = Auth::user();
-        $class = ClassModel::where('leader_id', $user->id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer', 'Member', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
 
         if (!$class) {
             return response()->json(['message' => 'Class not found'], 404);
@@ -171,7 +201,7 @@ class CashController extends Controller
         $month = $req->month ?? now()->month;
         $currentWeek = now()->weekOfMonth;
 
-        if($req->month < now()->month){
+        if ($req->month < now()->month) {
             $currentWeek = 4;
         }
 
@@ -296,16 +326,9 @@ class CashController extends Controller
             }
 
             // Get class based on role
-            if ($user->role == 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } else if ($user->role == 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                if (!$memberData) {
-                    return response()->json(['message' => 'Class not found'], 404);
-                }
-                $class = ClassModel::where('id', $memberData->class_id)->first();
-            } else {
-                return response()->json(['message' => 'User does not have permission'], 403);
+            $class =  $this->getUserClass($user, ['Leader', 'Treasurer']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {
@@ -423,16 +446,9 @@ class CashController extends Controller
         }
 
         // Get class based on role
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            if (!$memberData) {
-                return response()->json(['message' => 'Class not found'], 404);
-            }
-            $class = ClassModel::where('id', $memberData->class_id)->first();
-        } else {
-            return response()->json(['message' => 'User does not have permission'], 403);
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer','Member','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
 
         if (!$class) {
@@ -455,7 +471,10 @@ class CashController extends Controller
     public function listPembayaranPerBulan(Request $req)
     {
         $user = Auth::user();
-        $class = ClassModel::where('leader_id', $user->id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer','Member','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
 
         if (!$class) {
             return response()->json(['message' => 'Class not found'], 404);

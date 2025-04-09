@@ -16,7 +16,27 @@ use Illuminate\Support\Facades\Storage;
 
 class MemberController extends Controller
 {
-    //
+    public function getUserClass($user, $grantRole)
+    {
+        $class =  new ClassModel();
+
+        if (!in_array($user->role, $grantRole)) {
+            return response()->json([
+                'message' => 'Permission denied',
+                'messageType' => 'error',
+            ], 200);
+        }
+
+        if ($user->role == 'Leader') {
+            $class = ClassModel::where('leader_id', $user->id)->first();
+        }
+        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+            $memberData = MemberModel::where('user_id', $user->id)->first();
+            $class = ClassModel::where('id', $memberData->class_id)->first();
+        }
+
+        return $class;
+    }
 
     public function addMember(Request $req)
     {
@@ -26,7 +46,11 @@ class MemberController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class = ClassModel::where('leader_id', $user->id)->first();
+        $class =  $this->getUserClass($user, ['Leader']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
+
 
         // Validate incoming request data
         $validated = $req->validate([
@@ -76,71 +100,86 @@ class MemberController extends Controller
 
     public function editMember(Request $req)
     {
-        // Ensure the authenticated user exists (optional)
-        $user = Auth::user();
-        if (!$user) {
-            return response()->json(['message' => 'Unauthorized'], 401);
-        }
-
-        $id = $req['id'];
-
-        // Find the member's user record
-        $member = MemberModel::where('id', $id)->first();
-        if (!$member) {
-            return response()->json(['message' => 'Member not found'], 404);
-        }
-
-        $memberUser = User::where('id', $member->user_id)->first();
-        if (!$memberUser) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
-
-        // Validate incoming request data
-        $validated = $req->validate([
-            'name' => 'sometimes|string|max:255',
-            'email' => "sometimes|email|unique:users,email,$memberUser->id",
-            'role' => 'sometimes|string|in:Secretary,Treasurer,Member',
-            'access_code' => 'sometimes|string|min:6',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:3024', // Added avatar validation
-        ]);
-
-        // Handle avatar upload if present
-        $avatarPath = $memberUser->avatar; // Keep existing avatar by default
-        if ($req->hasFile('avatar') && $req->file('avatar')->isValid()) {
-            // Delete old avatar if exists
-            if ($memberUser->avatar && Storage::disk('public')->exists($memberUser->avatar)) {
-                Storage::disk('public')->delete($memberUser->avatar);
+        try {
+            //code...
+            // Ensure the authenticated user exists (optional)
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
             }
 
-            // Upload new avatar
-            $avatar = $req->file('avatar');
-            $filename = time() . '_' . $avatar->getClientOriginalName();
-            $avatarPath = $avatar->storeAs('avatars', $filename, 'public');
+            $class =  $this->getUserClass($user, ['Leader']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
+            }
+
+
+            $id = $req['id'];
+
+            // Find the member's user record
+            $member = MemberModel::where('id', $id)->first();
+            if (!$member) {
+                return response()->json(['message' => 'Member not found'], 404);
+            }
+
+            $memberUser = User::where('id', $member->user_id)->first();
+            if (!$memberUser) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+
+            // Validate incoming request data
+            $validated = $req->validate([
+                'name' => 'sometimes|string|max:255',
+                'email' => "sometimes|email|unique:users,email,$memberUser->id",
+                'role' => 'sometimes|string|in:Secretary,Treasurer,Member',
+                'access_code' => 'sometimes|string|min:6',
+                'avatar' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:3024', // Added avatar validation
+            ]);
+
+            // Handle avatar upload if present
+            $avatarPath = $memberUser->avatar; // Keep existing avatar by default
+            if ($req->hasFile('avatar') && $req->file('avatar')->isValid()) {
+                // Delete old avatar if exists
+                if ($memberUser->avatar && Storage::disk('public')->exists($memberUser->avatar)) {
+                    Storage::disk('public')->delete($memberUser->avatar);
+                }
+
+                // Upload new avatar
+                $avatar = $req->file('avatar');
+                $filename = time() . '_' . $avatar->getClientOriginalName();
+                $avatarPath = $avatar->storeAs('avatars', $filename, 'public');
+            }
+
+            // Update user details
+            $memberUser->update(array_filter([
+                'name' => $validated['name'] ?? $memberUser->name,
+                'email' => $validated['email'] ?? $memberUser->email,
+                'role' => $validated['role'] ?? $memberUser->role,
+                'password' => isset($validated['access_code']) ? Hash::make($validated['access_code']) : null,
+                'avatar' => $avatarPath, // Add updated avatar path
+            ], function ($value) {
+                return $value !== null;
+            }));
+
+            // Update member access_code if provided
+            if (isset($validated['access_code'])) {
+                $member->update(['access_code' => $validated['access_code']]);
+            }
+
+            return response()->json([
+                'message' => 'Member updated successfully',
+                'messageType' => 'success',
+                'user' => $memberUser,
+                'member' => $member,
+                'avatar' => $avatarPath ? asset('storage/' . $avatarPath) : null, // Include avatar URL in response
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => $th->getMessage(),
+                'messageType' => 'success',
+            ], 200);
+            //throw $th;
         }
-
-        // Update user details
-        $memberUser->update(array_filter([
-            'name' => $validated['name'] ?? $memberUser->name,
-            'email' => $validated['email'] ?? $memberUser->email,
-            'role' => $validated['role'] ?? $memberUser->role,
-            'password' => isset($validated['access_code']) ? Hash::make($validated['access_code']) : null,
-            'avatar' => $avatarPath, // Add updated avatar path
-        ], function ($value) {
-            return $value !== null;
-        }));
-
-        // Update member access_code if provided
-        if (isset($validated['access_code'])) {
-            $member->update(['access_code' => $validated['access_code']]);
-        }
-
-        return response()->json([
-            'message' => 'Member updated successfully',
-            'messageType' => 'success',
-            'user' => $memberUser,
-            'member' => $member,
-            'avatar' => $avatarPath ? asset('storage/' . $avatarPath) : null, // Include avatar URL in response
-        ], 200);
     }
 
 
@@ -151,7 +190,11 @@ class MemberController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class = ClassModel::where('leader_id', $user->id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer', 'Secretary', 'Member']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
+
         if (!$class) {
             return response()->json(['message' => 'Class not found'], 404);
         }
@@ -251,6 +294,12 @@ class MemberController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
+
+        $class =  $this->getUserClass($user, ['Leader']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
+
 
         // Validate request
         $validatedData = $req->validate([

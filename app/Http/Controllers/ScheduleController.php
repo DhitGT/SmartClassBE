@@ -12,7 +12,27 @@ use Illuminate\Support\Facades\Auth;
 
 class ScheduleController extends Controller
 {
-    //
+    public function getUserClass($user, $grantRole)
+    {
+        $class =  new ClassModel();
+
+        if (!in_array($user->role, $grantRole)) {
+            return response()->json([
+                'message' => 'Permission denied',
+                'messageType' => 'error',
+            ], 200);
+        }
+
+        if ($user->role == 'Leader') {
+            $class = ClassModel::where('leader_id', $user->id)->first();
+        }
+        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+            $memberData = MemberModel::where('user_id', $user->id)->first();
+            $class = ClassModel::where('id', $memberData->class_id)->first();
+        }
+
+        return $class;
+    }
 
     function GetClassSubjectSchedule(Request $req)
     {
@@ -21,15 +41,10 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Member', 'Treasurer', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
-
 
         $schedules = ScheduleSubjectModel::where('class_id', $class->id)
             ->with('subject')
@@ -68,6 +83,60 @@ class ScheduleController extends Controller
             'schedule' => $schedules,
         ], 201);
     }
+    function GetClassNowSubjectSchedule(Request $req)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $class =  $this->getUserClass($user, ['Leader', 'Member', 'Treasurer', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
+        }
+
+
+        $dayIndex = date('N');
+
+        $schedules = ScheduleSubjectModel::where('class_id', $class->id)
+            ->with('subject')
+            ->where('day', $dayIndex)
+            ->orderBy('start_time', 'asc')
+            ->get()
+            ->map(function ($schedule) {
+                return [
+                    'id' => $schedule->id,
+                    'day' => $schedule->day,
+                    'subject_id' => $schedule->subject_id,
+                    'start_time' => date('H:i', strtotime($schedule->start_time)),
+                    'end_time' => date('H:i', strtotime($schedule->end_time)),
+                    'class_id' => $schedule->class_id,
+                    'created_at' => $schedule->created_at,
+                    'updated_at' => $schedule->updated_at,
+
+                    'subject' => $schedule->subject ? [
+                        'id' => $schedule->subject->id,
+                        'name' => $schedule->subject->name,
+                        'icon' => $schedule->subject->icon,
+                        'description' => $schedule->subject->description,
+                        'class_id' => $schedule->subject->class_id,
+                        'created_at' => $schedule->subject->created_at,
+                        'updated_at' => $schedule->subject->updated_at,
+
+                        // Inject schedule-related info into subject object
+                        'schedule_id' => $schedule->id,
+                        'start_time' => date('H:i', strtotime($schedule->start_time)),
+                        'end_time' => date('H:i', strtotime($schedule->end_time)),
+                    ] : null,
+                ];
+            });
+        return response()->json([
+            'message' => 'Schedule set successfully',
+            'messageType' => 'success',
+            'schedule' => $schedules,
+            'dayIndex' => $dayIndex,
+        ], 201);
+    }
     function GetClassDutySchedule(Request $req)
     {
         $user = Auth::user();
@@ -75,13 +144,9 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader', 'Member', 'Treasurer', 'Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
 
 
@@ -122,14 +187,9 @@ class ScheduleController extends Controller
             ]);
 
             // ✅ Get class based on user role
-            $class = null;
-            if ($user->role === 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } elseif ($user->role === 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                if ($memberData) {
-                    $class = ClassModel::find($memberData->class_id);
-                }
+            $class =  $this->getUserClass($user, ['Leader', 'Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {
@@ -181,14 +241,9 @@ class ScheduleController extends Controller
             ]);
 
             // ✅ Get class based on user role
-            $class = null;
-            if ($user->role === 'Leader') {
-                $class = ClassModel::where('leader_id', $user->id)->first();
-            } elseif ($user->role === 'Secretary') {
-                $memberData = MemberModel::where('user_id', $user->id)->first();
-                if ($memberData) {
-                    $class = ClassModel::find($memberData->class_id);
-                }
+            $class =  $this->getUserClass($user, ['Leader','Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
             }
 
             if (!$class) {
@@ -206,7 +261,7 @@ class ScheduleController extends Controller
                     'class_id' => $class->id,
                 ]);
             }
-            
+
 
             return response()->json([
                 'message' => 'Schedule set successfully',
@@ -229,13 +284,9 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
 
         $schedule = ScheduleSubjectModel::where("id", $req->id)->delete();
@@ -253,13 +304,9 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
 
         $schedule = ScheduleDutyModel::where("id", $req->id)->delete();
@@ -278,14 +325,11 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader','Member','Treasurer','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
+
         // Get subject IDs that are already used in the schedule
         $scheduledSubjectIds = ScheduleSubjectModel::where('class_id', $class->id)->pluck('subject_id');
 
@@ -308,14 +352,11 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  new ClassModel();
-
-        if ($user->role == 'Leader') {
-            $class = ClassModel::where('leader_id', $user->id)->first();
-        } else if ($user->role == 'Secretary') {
-            $memberData = MemberModel::where('user_id', $user->id)->first();
-            $class = ClassModel::where('id', $memberData->class_id)->first();
+        $class =  $this->getUserClass($user, ['Leader','Member','Treasurer','Secretary']);
+        if ($class instanceof \Illuminate\Http\JsonResponse) {
+            return $class; // 🔁 Immediately return the response, breaking the flow
         }
+        
         // Get subject IDs that are already used in the schedule
         $scheduleDutyIds = ScheduleDutyModel::where('class_id', $class->id)->pluck('member_id');
 
