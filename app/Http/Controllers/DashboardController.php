@@ -27,7 +27,7 @@ class DashboardController extends Controller
         if ($user->role == 'Leader') {
             $class = ClassModel::where('leader_id', $user->id)->first();
         } 
-        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+        if ($user->role == 'Teacher' || $user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
             $memberData = MemberModel::where('user_id', $user->id)->first();
             $class = ClassModel::where('id', $memberData->class_id)->first();
         }
@@ -38,7 +38,7 @@ class DashboardController extends Controller
     public function getCountData(Request $req)
     {
         $user = Auth::user();
-        $class =  $this->getUserClass($user, ['Leader','Treasurer','Member','Secretary']);
+        $class =  $this->getUserClass($user, ['Teacher','Leader','Treasurer','Member','Secretary']);
         if ($class instanceof \Illuminate\Http\JsonResponse) {
             return $class; // 🔁 Immediately return the response, breaking the flow
         }

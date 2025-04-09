@@ -30,7 +30,7 @@ class SubjectController extends Controller
         if ($user->role == 'Leader') {
             $class = ClassModel::where('leader_id', $user->id)->first();
         }
-        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+        if ($user->role == 'Teacher' || $user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
             $memberData = MemberModel::where('user_id', $user->id)->first();
             $class = ClassModel::where('id', $memberData->class_id)->first();
         }
@@ -156,7 +156,7 @@ class SubjectController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  $this->getUserClass($user, ['Leader', 'Secretary', 'Member', 'Treasurer']);
+        $class =  $this->getUserClass($user, ['Teacher','Leader', 'Secretary', 'Member', 'Treasurer']);
         if ($class instanceof \Illuminate\Http\JsonResponse) {
             return $class; // 🔁 Immediately return the response, breaking the flow
         }

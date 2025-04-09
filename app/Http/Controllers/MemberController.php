@@ -30,7 +30,7 @@ class MemberController extends Controller
         if ($user->role == 'Leader') {
             $class = ClassModel::where('leader_id', $user->id)->first();
         }
-        if ($user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
+        if ($user->role == 'Teacher' || $user->role == 'Secretary' || $user->role == 'Member' || $user->role == 'Treasurer') {
             $memberData = MemberModel::where('user_id', $user->id)->first();
             $class = ClassModel::where('id', $memberData->class_id)->first();
         }
@@ -56,7 +56,7 @@ class MemberController extends Controller
         $validated = $req->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'role' => 'required|string|in:Secretary,Treasurer,Member',
+            'role' => 'required|string|in:Secretary,Treasurer,Member,Teacher',
             'password' => 'required|string|min:6',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:3024', // Max 1MB
         ]);
@@ -131,7 +131,7 @@ class MemberController extends Controller
             $validated = $req->validate([
                 'name' => 'sometimes|string|max:255',
                 'email' => "sometimes|email|unique:users,email,$memberUser->id",
-                'role' => 'sometimes|string|in:Secretary,Treasurer,Member',
+                'role' => 'sometimes|string|in:Secretary,Treasurer,Member,Teacher',
                 'access_code' => 'sometimes|string|min:6',
                 'avatar' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:3024', // Added avatar validation
             ]);
@@ -190,7 +190,7 @@ class MemberController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $class =  $this->getUserClass($user, ['Leader', 'Treasurer', 'Secretary', 'Member']);
+        $class =  $this->getUserClass($user, ['Teacher','Leader', 'Treasurer', 'Secretary', 'Member']);
         if ($class instanceof \Illuminate\Http\JsonResponse) {
             return $class; // 🔁 Immediately return the response, breaking the flow
         }
