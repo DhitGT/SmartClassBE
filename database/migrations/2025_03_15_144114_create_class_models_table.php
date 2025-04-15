@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('class_models', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->integer('cash_per_week')->nullable();
             $table->string('leader_id');
             $table->timestamps();
         });

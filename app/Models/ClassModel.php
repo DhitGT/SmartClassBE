@@ -13,6 +13,7 @@ class ClassModel extends Model
     protected $fillable = [
         'name',
         'leader_id',
+        'cash_per_week'
     ];
 
     public $incrementing = false; // Disable auto-increment

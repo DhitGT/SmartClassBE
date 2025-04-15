@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SubjectController;
@@ -26,6 +27,13 @@ use App\Http\Controllers\TeacherController;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/forbidden', [AuthController::class, 'forbidden'])->name('forbidden');
+
+Route::prefix('auth')->group(function () {
+    // Route::get('/google/redirect', [GoogleAuthController::class, 'redirect']);
+    // Route::get('/google/callback', [GoogleAuthController::class, 'callback']);
+    Route::post('/google', [GoogleAuthController::class, 'handleGoogleCallback']);
+    
+});
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -37,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     route::prefix('/cash')->group(function () {
         Route::post('/getClassCashSummary', [CashController::class, 'getClassCashSummary']);
+        Route::post('/setCashPerWeek', [CashController::class, 'setCashPerWeek']);
+        Route::post('/getCashPerWeek', [CashController::class, 'getCashPerWeek']);
         Route::post('/listPembayaranPerBulan', [CashController::class, 'listPembayaranPerBulan']);
         Route::post('/add', [CashController::class, 'addTransaction']);
         Route::post('/edit', [CashController::class, 'editTransaction']);

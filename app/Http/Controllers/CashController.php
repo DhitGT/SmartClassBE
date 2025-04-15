@@ -186,133 +186,141 @@ class CashController extends Controller
 
     public function getClassCashSummary(Request $req)
     {
-        $user = Auth::user();
-        $class =  $this->getUserClass($user, [ 'Teacher','Leader', 'Treasurer', 'Member', 'Secretary']);
-        if ($class instanceof \Illuminate\Http\JsonResponse) {
-            return $class; // 🔁 Immediately return the response, breaking the flow
-        }
+        try {
+            //code...
+            $user = Auth::user();
+            $class =  $this->getUserClass($user, ['Teacher', 'Leader', 'Treasurer', 'Member', 'Secretary']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
+            }
 
-        if (!$class) {
-            return response()->json(['message' => 'Class not found'], 404);
-        }
+            if (!$class) {
+                return response()->json(['message' => 'Class not found'], 404);
+            }
 
-        $class_id = $class->id;
-        $year = $req->year ?? now()->year;
-        $month = $req->month ?? now()->month;
-        $currentWeek = now()->weekOfMonth;
-
-        if ($req->month < now()->month) {
+            $class_id = $class->id;
+            $year = $req->year ?? now()->year;
+            $month = $req->month ?? now()->month;
+            $currentWeek = now()->weekOfMonth;
             $currentWeek = 4;
+
+            if ($req->month < now()->month) {
+            }
+
+
+            // Previous Month Calculation
+            $previousMonth = $month == 1 ? 12 : $month - 1;
+            $previousYear = $month == 1 ? $year - 1 : $year;
+            $weeklyFee = $class->cash_per_week; // Example: Each week costs 5000
+
+            // Total Revenue (Income) - Now filtered by the selected month & year
+            $totalRevenue = CashModel::where('class_id', $class_id)
+                ->where('tahun', $year)
+                ->where('bulan', $month)
+                ->where('status', 'Sudah Bayar')
+                ->sum('nominal');
+
+            // Get all members in the class
+            $allMembers = MemberModel::where('class_id', $class_id)->pluck('id');
+
+            // Get members who have completed payments
+            $completedMembers = CashModel::where('class_id', $class_id)
+                ->where('tahun', $year)
+                ->where('bulan', $month)
+                ->where('status', 'Sudah Bayar')
+                ->where('minggu', '<=', $currentWeek)
+                ->groupBy('member_id')
+                ->havingRaw('COUNT(DISTINCT minggu) = ?', [$currentWeek])
+                ->pluck('member_id');
+
+            $totalCompleted = CashModel::whereIn('member_id', $completedMembers)
+                ->where('class_id', $class_id)
+                ->where('tahun', $year)
+                ->where('bulan', $month)
+                ->sum('nominal');
+
+            // Count Members Who Completed Payment
+            $completedMemberCount = $completedMembers->count();
+
+            // Find Members Who Haven't Completed Payment
+            $membersWhoPaidAtLeastOnce = CashModel::where('class_id', $class_id)
+                ->where('tahun', $year)
+                ->where('bulan', $month)
+                ->pluck('member_id')
+                ->unique();
+
+            $pendingMembers = $allMembers->diff($completedMembers); // Members who are not fully paid
+            $neverPaidMembers = $allMembers->diff($membersWhoPaidAtLeastOnce); // Members who never paid at all
+
+            // Total Pending Payment (Including Members Who Never Paid)
+            $totalPending = CashModel::whereIn('member_id', $pendingMembers)
+                ->where('class_id', $class_id)
+                ->where('tahun', $year)
+                ->where('bulan', $month)
+                ->sum('nominal');
+
+            // Estimate amount owed by members who never paid
+            $neverPaidTotal = $neverPaidMembers->count() * ($weeklyFee * $currentWeek);
+
+            // Final total pending amount including unpaid members
+            $totalPending += $neverPaidTotal;
+
+            // Count Members Who Haven't Completed Payment
+            $pendingMemberCount = $pendingMembers->count();
+
+            // Total Pemasukan (Income from payments)
+            $total_pemasukan = CashModel::where('class_id', $class_id)
+                ->where('status', 'Sudah Bayar')
+                ->sum('nominal');
+
+            // Total Pengeluaran (Expenses)
+            $total_pengeluaran = CashLogModel::where('class_id', $class_id)
+                ->where('type', 'expense')
+                ->sum('amount');
+
+            // Saldo Kas (Total Cash)
+            $total_kas = $total_pemasukan - $total_pengeluaran;
+
+            // ** Calculate Last Month's Completed Payments **
+            $totalCompletedLastMonth = CashModel::where('class_id', $class_id)
+                ->where('tahun', $previousYear)
+                ->where('bulan', $previousMonth)
+                ->sum('nominal');
+
+            $totalRevenueLastMonth = CashModel::where('class_id', $class_id)
+                ->where('tahun', $previousYear)
+                ->where('bulan', $previousMonth)
+                ->where('status', 'Sudah Bayar')
+                ->sum('nominal');
+
+            // ** Corrected Percentage Change Calculation **
+            if ($totalRevenueLastMonth > 0) {
+                $percentageChange = (($totalRevenue - $totalRevenueLastMonth) / $totalRevenueLastMonth) * 100;
+            } else {
+                $percentageChange = $totalRevenue > 0 ? 100 : 0; // If last month was 0, assume 100% increase only if there's income this month
+            }
+            $percentage_arrow = $percentageChange > 0 ? '↑' : ($percentageChange < 0 ? '↓' : '-');
+
+            return response()->json([
+                'year' => $year,
+                'month' => $month,
+                'class_id' => $class_id,
+                'total_cash' => $total_kas,
+                'total_revenue' => $totalRevenue,
+                'total_completed_payment' => $totalCompleted,
+                'completed_members_count' => $completedMemberCount,
+                'total_pending_payment' => $totalPending,
+                'pending_members_count' => $pendingMemberCount,
+                'current_week' => $currentWeek,
+                'percentage_change' => round($percentageChange, 2) . '%',
+                'percentage_arrow' => $percentage_arrow
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => $th->getMessage()
+            ]);
+            //throw $th;
         }
-
-
-        // Previous Month Calculation
-        $previousMonth = $month == 1 ? 12 : $month - 1;
-        $previousYear = $month == 1 ? $year - 1 : $year;
-
-        // Total Revenue (Income) - Now filtered by the selected month & year
-        $totalRevenue = CashModel::where('class_id', $class_id)
-            ->where('tahun', $year)
-            ->where('bulan', $month)
-            ->where('status', 'Sudah Bayar')
-            ->sum('nominal');
-
-        // Get all members in the class
-        $allMembers = MemberModel::where('class_id', $class_id)->pluck('id');
-
-        // Get members who have completed payments
-        $completedMembers = CashModel::where('class_id', $class_id)
-            ->where('tahun', $year)
-            ->where('bulan', $month)
-            ->where('status', 'Sudah Bayar')
-            ->where('minggu', '<=', $currentWeek)
-            ->groupBy('member_id')
-            ->havingRaw('COUNT(DISTINCT minggu) = ?', [$currentWeek])
-            ->pluck('member_id');
-
-        $totalCompleted = CashModel::whereIn('member_id', $completedMembers)
-            ->where('class_id', $class_id)
-            ->where('tahun', $year)
-            ->where('bulan', $month)
-            ->sum('nominal');
-
-        // Count Members Who Completed Payment
-        $completedMemberCount = $completedMembers->count();
-
-        // Find Members Who Haven't Completed Payment
-        $membersWhoPaidAtLeastOnce = CashModel::where('class_id', $class_id)
-            ->where('tahun', $year)
-            ->where('bulan', $month)
-            ->pluck('member_id')
-            ->unique();
-
-        $pendingMembers = $allMembers->diff($completedMembers); // Members who are not fully paid
-        $neverPaidMembers = $allMembers->diff($membersWhoPaidAtLeastOnce); // Members who never paid at all
-
-        // Total Pending Payment (Including Members Who Never Paid)
-        $totalPending = CashModel::whereIn('member_id', $pendingMembers)
-            ->where('class_id', $class_id)
-            ->where('tahun', $year)
-            ->where('bulan', $month)
-            ->sum('nominal');
-
-        // Estimate amount owed by members who never paid
-        $weeklyFee = 5000; // Example: Each week costs 5000
-        $neverPaidTotal = $neverPaidMembers->count() * ($weeklyFee * $currentWeek);
-
-        // Final total pending amount including unpaid members
-        $totalPending += $neverPaidTotal;
-
-        // Count Members Who Haven't Completed Payment
-        $pendingMemberCount = $pendingMembers->count();
-
-        // Total Pemasukan (Income from payments)
-        $total_pemasukan = CashModel::where('class_id', $class_id)
-            ->where('status', 'Sudah Bayar')
-            ->sum('nominal');
-
-        // Total Pengeluaran (Expenses)
-        $total_pengeluaran = CashLogModel::where('class_id', $class_id)
-            ->where('type', 'expense')
-            ->sum('amount');
-
-        // Saldo Kas (Total Cash)
-        $total_kas = $total_pemasukan - $total_pengeluaran;
-
-        // ** Calculate Last Month's Completed Payments **
-        $totalCompletedLastMonth = CashModel::where('class_id', $class_id)
-            ->where('tahun', $previousYear)
-            ->where('bulan', $previousMonth)
-            ->sum('nominal');
-
-        $totalRevenueLastMonth = CashModel::where('class_id', $class_id)
-            ->where('tahun', $previousYear)
-            ->where('bulan', $previousMonth)
-            ->where('status', 'Sudah Bayar')
-            ->sum('nominal');
-
-        // ** Corrected Percentage Change Calculation **
-        if ($totalRevenueLastMonth > 0) {
-            $percentageChange = (($totalRevenue - $totalRevenueLastMonth) / $totalRevenueLastMonth) * 100;
-        } else {
-            $percentageChange = $totalRevenue > 0 ? 100 : 0; // If last month was 0, assume 100% increase only if there's income this month
-        }
-        $percentage_arrow = $percentageChange > 0 ? '↑' : ($percentageChange < 0 ? '↓' : '-');
-
-        return response()->json([
-            'year' => $year,
-            'month' => $month,
-            'class_id' => $class_id,
-            'total_cash' => $total_kas,
-            'total_revenue' => $totalRevenue,
-            'total_completed_payment' => $totalCompleted,
-            'completed_members_count' => $completedMemberCount,
-            'total_pending_payment' => $totalPending,
-            'pending_members_count' => $pendingMemberCount,
-            'current_week' => $currentWeek,
-            'percentage_change' => round($percentageChange, 2) . '%',
-            'percentage_arrow' => $percentage_arrow
-        ]);
     }
 
 
@@ -436,6 +444,77 @@ class CashController extends Controller
             //throw $th;
         }
     }
+    public function setCashPerWeek(Request $req)
+    {
+        try {
+            //code...
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
+
+            // Get class based on role
+            $class =  $this->getUserClass($user, ['Leader', 'Treasurer']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
+            }
+
+            if (!$class) {
+                return response()->json(['message' => 'Class not found'], 404);
+            }
+
+
+            // Validate request data
+            $validatedData = $req->validate([
+                'amount' => 'required|integer', // Ensure the member exists
+            ]);
+
+            $class->cash_per_week = $validatedData['amount'];
+
+            $class->update();
+
+
+            return response()->json([
+                'message' => 'Transactions successfully updated',
+                'data' => $class
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => $th->getMessage(),
+            ], 200);
+            //throw $th;
+        }
+    }
+    public function getCashPerWeek(Request $req)
+    {
+        try {
+            //code...
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
+
+            // Get class based on role
+            $class =  $this->getUserClass($user, ['Leader', 'Treasurer']);
+            if ($class instanceof \Illuminate\Http\JsonResponse) {
+                return $class; // 🔁 Immediately return the response, breaking the flow
+            }
+
+            if (!$class) {
+                return response()->json(['message' => 'Class not found'], 404);
+            }
+
+            return response()->json([
+                'message' => 'Transactions successfully updated',
+                'data' => $class
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => $th->getMessage(),
+            ], 200);
+            //throw $th;
+        }
+    }
 
     public function getCashLog(Request $req)
     {
@@ -446,7 +525,7 @@ class CashController extends Controller
         }
 
         // Get class based on role
-        $class =  $this->getUserClass($user, ['Teacher','Leader', 'Treasurer','Member','Secretary']);
+        $class =  $this->getUserClass($user, ['Teacher', 'Leader', 'Treasurer', 'Member', 'Secretary']);
         if ($class instanceof \Illuminate\Http\JsonResponse) {
             return $class; // 🔁 Immediately return the response, breaking the flow
         }
@@ -471,7 +550,7 @@ class CashController extends Controller
     public function listPembayaranPerBulan(Request $req)
     {
         $user = Auth::user();
-        $class =  $this->getUserClass($user, ['Leader', 'Treasurer','Member','Secretary']);
+        $class =  $this->getUserClass($user, ['Leader', 'Treasurer', 'Member', 'Secretary']);
         if ($class instanceof \Illuminate\Http\JsonResponse) {
             return $class; // 🔁 Immediately return the response, breaking the flow
         }
