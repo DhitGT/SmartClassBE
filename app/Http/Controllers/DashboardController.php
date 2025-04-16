@@ -61,7 +61,13 @@ class DashboardController extends Controller
 
         $data = [
             'teachers' => TeacherModel::where('class_id', $class->id)->count(),
-            'students' => MemberModel::where('class_id', $class->id)->count(),
+            'students' => MemberModel::where('class_id', $class->id)
+            ->whereHas('user', function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            })
+            ->with(['user' => function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            }])->count(),
             'subjects' => SubjectModel::where('class_id', $class->id)->count(),
             // 'cash' => CashModel::where('class_id', $class->id)->value('total'),
             'cash' => $total_kas,

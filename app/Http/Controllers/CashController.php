@@ -221,7 +221,13 @@ class CashController extends Controller
                 ->sum('nominal');
 
             // Get all members in the class
-            $allMembers = MemberModel::where('class_id', $class_id)->pluck('id');
+            $allMembers = MemberModel::where('class_id', $class_id)
+            ->whereHas('user', function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            })
+            ->with(['user' => function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            }])->pluck('id');
 
             // Get members who have completed payments
             $completedMembers = CashModel::where('class_id', $class_id)
@@ -564,7 +570,14 @@ class CashController extends Controller
         $month = $req->month ?? now()->month;
 
         // Ambil semua siswa dalam kelas ini
-        $siswa_kelas = MemberModel::where('class_id', $class_id)->with('user')->get();
+        $siswa_kelas = MemberModel::where('class_id', $class_id)
+            ->whereHas('user', function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            })
+            ->with(['user' => function ($query) {
+                $query->whereIn('role', ['Member', 'Secretary', 'Treasurer', 'Leader']);
+            }])
+            ->get();
 
         // Tentukan tanggal setiap minggu dalam bulan ini
         $start_date = Carbon::createFromDate($year, $month, 1);
